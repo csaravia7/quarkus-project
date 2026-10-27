@@ -22,7 +22,8 @@ jobs:
           distribution: temurin
           java-version: '21'
           cache: maven
-      - run: mvn -B verify
+      - name: Build nativo + tests contra el ejecutable nativo
+        run: ./mvnw -B verify -Dnative -Dquarkus.native.container-build=true
 
   frontend:
     runs-on: ubuntu-latest
