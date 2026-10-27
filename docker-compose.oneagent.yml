@@ -1,0 +1,6 @@
+services:
+  frontend:
+    volumes:
+      - /opt/dynatrace/oneagent:/opt/dynatrace/oneagent
+    environment:
+      LD_PRELOAD: /opt/dynatrace/oneagent/agent/lib64/liboneagentproc.so

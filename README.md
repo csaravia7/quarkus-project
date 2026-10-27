@@ -29,7 +29,17 @@ El frontend sirve la UI y hace de proxy server-side de `/api/*` hacia Quarkus (`
 
 ## Dynatrace OneAgent
 
-Al crear el Codespace, `.devcontainer/install-oneagent.sh` descarga el instalador Linux de OneAgent desde tu ambiente, verifica su firma y lo instala en modo **full-stack directamente en el sistema operativo** (Debian 12), **antes** de compilar o levantar los microservicios. En cada reinicio del Codespace, `.devcontainer/start-oneagent.sh` levanta el servicio (no hay systemd). Si no hay credenciales, se omite.
+El Codespace corre dentro de un contenedor, por lo que OneAgent full-stack no es instalable. Se usa **monitoreo application-only (PaaS)**:
+
+1. Al crear el Codespace, `.devcontainer/install-oneagent.sh` descarga el paquete PaaS (Java + Node.js) desde tu ambiente y lo instala en `/opt/dynatrace/oneagent`.
+2. `scripts/start-dev.sh` y `scripts/start-docker.sh` cargan `scripts/oneagent-env.sh`, que activa el agente con `LD_PRELOAD` solo en los procesos de la app.
+
+| Modo | Instrumentado |
+|---|---|
+| `start-dev.sh` | Frontend Node.js y API Quarkus (JVM) |
+| `start-docker.sh` | Frontend Node.js (contenedor). La API nativa GraalVM **no** es instrumentable con OneAgent PaaS |
+
+Si no hay credenciales, se omite y todo funciona sin monitoreo.
 
 Define estas variables al crear el Codespace con **Code → Codespaces → ⋯ → New with options** (o con el botón *Open in GitHub Codespaces* de arriba). La pantalla muestra un campo por cada variable; lo que ingreses se guarda como Codespaces secret de tu usuario y queda disponible como variable de entorno:
 
@@ -37,9 +47,8 @@ Define estas variables al crear el Codespace con **Code → Codespaces → ⋯ �
 |---|---|
 | `DT_ENV_URL` | `https://<env-id>.live.dynatrace.com` |
 | `DT_API_TOKEN` | Token con scope `InstallerDownload` |
-| `DT_HOST_GROUP` | (Opcional) host group |
 
-Reinstalar manualmente: `bash .devcontainer/install-oneagent.sh`. Estado: `sudo /opt/dynatrace/oneagent/agent/tools/oneagentctl --get-server` y logs en `/var/log/dynatrace/oneagent/`.
+Reinstalar manualmente: `bash .devcontainer/install-oneagent.sh`. Logs del agente: `/opt/dynatrace/oneagent/log/`.
 
 ## Endpoints API
 

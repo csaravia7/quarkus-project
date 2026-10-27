@@ -23,9 +23,6 @@
     },
     "DT_API_TOKEN": {
       "description": "Dynatrace: token de API con scope InstallerDownload"
-    },
-    "DT_HOST_GROUP": {
-      "description": "Dynatrace: host group para OneAgent (opcional, puede quedar vacío)"
     }
   },
   "forwardPorts": [3000, 8080],
@@ -44,7 +41,6 @@
     }
   },
   "postCreateCommand": "bash .devcontainer/post-create.sh",
-  "postStartCommand": "bash .devcontainer/start-oneagent.sh",
   "customizations": {
     "vscode": {
       "extensions": [

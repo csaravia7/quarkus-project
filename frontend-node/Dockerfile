@@ -1,4 +1,5 @@
-FROM node:20-alpine
+# Base glibc (no alpine/musl) para compatibilidad con OneAgent PaaS flavor default
+FROM node:20-bookworm-slim
 WORKDIR /app
 ENV NODE_ENV=production
 COPY package*.json ./

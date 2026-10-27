@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-bash .devcontainer/install-oneagent.sh
+bash .devcontainer/install-oneagent.sh || echo ">> AVISO: falló la instalación de OneAgent; se continúa con el resto del setup." >&2
 
 echo ">> Precargando dependencias Maven (api-quarkus)..."
 (cd api-quarkus && mvn -B -q -DskipTests package)

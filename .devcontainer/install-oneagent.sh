@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Instala Dynatrace OneAgent (full-stack) directamente en el sistema operativo del Codespace con el instalador Linux.
+# Instala Dynatrace OneAgent en modo application-only (PaaS): el Codespace es un contenedor y no admite full-stack.
+# Los procesos se instrumentan al arrancar con LD_PRELOAD (ver scripts/oneagent-env.sh).
 set -euo pipefail
 
 if [[ -z "${DT_ENV_URL:-}" || -z "${DT_API_TOKEN:-}" ]]; then
@@ -20,30 +21,29 @@ case "$(uname -m)" in
   *) echo ">> Arquitectura no soportada: $(uname -m)" >&2; exit 1 ;;
 esac
 
-if [[ -x /opt/dynatrace/oneagent/agent/tools/oneagentctl ]]; then
-  echo ">> OneAgent ya está instalado."
-  exec bash "$(dirname "$0")/start-oneagent.sh"
+DT_HOME=/opt/dynatrace/oneagent
+if [[ -f "$DT_HOME/agent/lib64/liboneagentproc.so" ]]; then
+  echo ">> OneAgent (application-only) ya está instalado en $DT_HOME."
+  exit 0
 fi
 
 WORKDIR="$(mktemp -d)"
 trap 'rm -rf "$WORKDIR"' EXIT
-INSTALLER="$WORKDIR/Dynatrace-OneAgent-Linux.sh"
+INSTALLER="$WORKDIR/Dynatrace-OneAgent-PaaS.sh"
 
-echo ">> Descargando instalador OneAgent (${DT_ENV_URL}, arch=${ARCH})..."
+echo ">> Descargando OneAgent PaaS (Java + Node.js) desde ${DT_ENV_URL}, arch=${ARCH}..."
 # El token va por stdin para que no aparezca en la lista de procesos
 printf 'Authorization: Api-Token %s\n' "$DT_API_TOKEN" | curl -fsSL -H @- -o "$INSTALLER" \
-  "${DT_ENV_URL}/api/v1/deployment/installer/agent/unix/default/latest?arch=${ARCH}&flavor=default"
+  "${DT_ENV_URL}/api/v1/deployment/installer/agent/unix/paas-sh/latest?arch=${ARCH}&flavor=default&include=java&include=nodejs"
 
-echo ">> Verificando firma del instalador..."
-curl -fsSL -o "$WORKDIR/dt-root.cert.pem" https://ca.dynatrace.com/dt-root.cert.pem
-( echo 'Content-Type: multipart/signed; protocol="application/x-pkcs7-signature"; micalg="sha-256"; boundary="--SIGNED-INSTALLER"'
-  echo; echo; echo '----SIGNED-INSTALLER'; cat "$INSTALLER" ) \
-  | openssl cms -verify -CAfile "$WORKDIR/dt-root.cert.pem" >/dev/null
+echo ">> Instalando en $DT_HOME..."
+sudo mkdir -p "$DT_HOME"
+sudo sh "$INSTALLER" "$DT_HOME"
+# Los procesos de la app (usuario vscode / node, uid 1000) deben poder escribir logs y runtime del agente
+sudo chown -R "$(id -u):$(id -g)" "$DT_HOME"
 
-args=(--set-monitoring-mode=fullstack --set-app-log-content-access=true)
-[[ -n "${DT_HOST_GROUP:-}" ]] && args+=("--set-host-group=${DT_HOST_GROUP}")
-
-echo ">> Instalando OneAgent en el sistema operativo..."
-sudo /bin/sh "$INSTALLER" "${args[@]}"
-
-bash "$(dirname "$0")/start-oneagent.sh"
+if [[ ! -f "$DT_HOME/agent/lib64/liboneagentproc.so" ]]; then
+  echo ">> No se encontró liboneagentproc.so tras la instalación." >&2
+  exit 1
+fi
+echo ">> OneAgent application-only listo. Los servicios se instrumentan al iniciarlos con scripts/start-*.sh"
