@@ -50,6 +50,21 @@ Define estas variables al crear el Codespace con **Code → Codespaces → ⋯ �
 
 Reinstalar manualmente: `bash .devcontainer/install-oneagent.sh`. Logs del agente: `/opt/dynatrace/oneagent/log/`.
 
+## Despliegue en AKS
+
+Manifiestos en `k8s/` (namespace `quarkus-demo`): API nativa (`ClusterIP`, 2 réplicas) y frontend (`LoadBalancer` puerto 80, 2 réplicas), con probes de salud y contenedores no-root. Las imágenes se descargan desde Docker Hub (`docker.io/rasec777/api-quarkus` y `docker.io/rasec777/frontend-node`).
+
+```bash
+# 1. Construir y publicar en Docker Hub (tag = commit actual + latest)
+./scripts/build-push-dockerhub.sh
+
+# 2. Conectar kubectl al AKS existente y desplegar
+az aks get-credentials -g <resource-group> -n <cluster>
+./scripts/deploy-aks.sh
+```
+
+`deploy-aks.sh` no crea infraestructura: aplica los manifiestos en el cluster del contexto actual de `kubectl`, con el mismo tag del commit, espera el rollout y muestra la IP pública. Opcionales: `IMAGE_TAG` (`latest` si publicaste desde otro commit), `DOCKERHUB_USER`, `DOCKERHUB_TOKEN` (solo si los repos son privados). Para eliminar el despliegue: `kubectl delete -k k8s`.
+
 ## Endpoints API
 
 - `GET/POST /api/products`, `GET/DELETE /api/products/{id}`

@@ -1,0 +1,12 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: quarkus-demo
+resources:
+  - namespace.yaml
+  - api-quarkus.yaml
+  - frontend-node.yaml
+images:
+  - name: docker.io/rasec777/api-quarkus
+    newTag: latest
+  - name: docker.io/rasec777/frontend-node
+    newTag: latest
