@@ -52,18 +52,39 @@ Reinstalar manualmente: `bash .devcontainer/install-oneagent.sh`. Logs del agent
 
 ## Despliegue en AKS
 
-Manifiestos en `k8s/` (namespace `quarkus-demo`): API nativa (`ClusterIP`, 2 réplicas) y frontend (`LoadBalancer` puerto 80, 2 réplicas), con probes de salud y contenedores no-root. Las imágenes se descargan desde Docker Hub (`docker.io/rasec777/api-quarkus` y `docker.io/rasec777/frontend-node`).
+Las imágenes se publican en Docker Hub (`rasec777/api-quarkus`, `rasec777/frontend-node`) y los manifiestos de `k8s/` las despliegan en el namespace `quarkus-demo`.
+
+### Requisitos
+
+- **Para construir (paso 1):** Docker en ejecución en tu máquina local (Docker Desktop o Colima). No funciona en Azure Cloud Shell.
+- **Para desplegar (paso 2):** `kubectl` conectado al cluster AKS.
+
+### Paso 1: Construir y publicar las imágenes (local)
 
 ```bash
-# 1. Construir y publicar en Docker Hub (tag = commit actual + latest)
 ./scripts/build-push-dockerhub.sh
-
-# 2. Conectar kubectl al AKS existente y desplegar
-az aks get-credentials -g <resource-group> -n <cluster>
-./scripts/deploy-aks.sh
 ```
 
-`deploy-aks.sh` no crea infraestructura: aplica los manifiestos en el cluster del contexto actual de `kubectl`, con el mismo tag del commit, espera el rollout y muestra la IP pública. Opcionales: `IMAGE_TAG` (`latest` si publicaste desde otro commit), `DOCKERHUB_USER`, `DOCKERHUB_TOKEN` (solo si los repos son privados). Para eliminar el despliegue: `kubectl delete -k k8s`.
+- Pide un Access Token de Docker Hub (o usa `DOCKERHUB_TOKEN`).
+- Publica `linux/amd64` con dos tags: el commit actual (ej. `d14f936`) y `latest`. Anota el tag que imprime al final.
+- En Mac Apple Silicon la imagen nativa se compila con emulación; para acelerarla: `colima start --vm-type vz --vz-rosetta --cpu 4 --memory 8`.
+
+### Paso 2: Desplegar en AKS
+
+```bash
+IMAGE_TAG=d14f936 ./scripts/deploy-aks.sh   # o IMAGE_TAG=latest
+```
+
+- Crea el namespace y aplica los manifiestos con el tag indicado.
+- Espera a que los pods estén listos y muestra la IP pública del frontend: `http://<IP>`.
+- Si los repos de Docker Hub son privados, agrega `DOCKERHUB_TOKEN=<token>`.
+
+### Verificar y eliminar
+
+```bash
+kubectl -n quarkus-demo get pods,svc   # estado
+kubectl delete -k k8s                  # eliminar el despliegue
+```
 
 ## Endpoints API
 

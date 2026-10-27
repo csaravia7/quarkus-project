@@ -10,6 +10,20 @@ cd "$(dirname "$0")/.."
 DOCKERHUB_USER="${DOCKERHUB_USER:-rasec777}"
 IMAGE_TAG="${IMAGE_TAG:-$(git rev-parse --short HEAD 2>/dev/null || date +%Y%m%d%H%M%S)}"
 
+if ! docker info >/dev/null 2>&1; then
+  echo ">> No hay daemon de Docker disponible. Ejecuta este script en tu máquina local (o en el Codespace)" >&2
+  echo "   con Docker Desktop / Colima iniciado. Azure Cloud Shell no tiene Docker." >&2
+  if [[ "$(uname -s)" == "Darwin" ]]; then
+    echo "   Mac Apple Silicon (recomendado, emula amd64 con Rosetta):" >&2
+    echo "     colima start --vm-type vz --vz-rosetta --cpu 4 --memory 8" >&2
+  fi
+  exit 1
+fi
+
+if [[ "$(uname -m)" == "arm64" || "$(uname -m)" == "aarch64" ]]; then
+  echo ">> Máquina ARM: la imagen amd64 se compila con emulación; la API nativa puede tardar bastante."
+fi
+
 if [[ -n "${DOCKERHUB_TOKEN:-}" ]]; then
   printf '%s' "$DOCKERHUB_TOKEN" | docker login -u "$DOCKERHUB_USER" --password-stdin
 else
