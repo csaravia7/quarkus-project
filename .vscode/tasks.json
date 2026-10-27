@@ -1,0 +1,30 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "API: quarkus dev",
+      "type": "shell",
+      "command": "mvn quarkus:dev",
+      "options": { "cwd": "${workspaceFolder}/api-quarkus" },
+      "isBackground": true,
+      "problemMatcher": []
+    },
+    {
+      "label": "Frontend: npm dev",
+      "type": "shell",
+      "command": "npm run dev",
+      "options": {
+        "cwd": "${workspaceFolder}/frontend-node",
+        "env": { "API_BASE_URL": "http://localhost:8080" }
+      },
+      "isBackground": true,
+      "problemMatcher": []
+    },
+    {
+      "label": "Start all",
+      "dependsOn": ["API: quarkus dev", "Frontend: npm dev"],
+      "dependsOrder": "parallel",
+      "problemMatcher": []
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+services:
+  api:
+    build: ./api-quarkus
+    ports:
+      - "8080:8080"
+
+  frontend:
+    build: ./frontend-node
+    environment:
+      API_BASE_URL: http://api:8080
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api
