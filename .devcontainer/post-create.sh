@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+bash .devcontainer/install-oneagent.sh
+
 echo ">> Precargando dependencias Maven (api-quarkus)..."
 (cd api-quarkus && mvn -B -q -DskipTests package)
 
