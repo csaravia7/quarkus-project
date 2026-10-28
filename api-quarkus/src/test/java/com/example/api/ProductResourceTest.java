@@ -30,6 +30,38 @@ class ProductResourceTest {
     }
 
     @Test
+    void updateReadAndDeleteProduct() {
+        Number createdId = given().contentType(ContentType.JSON)
+                .body("{\"name\":\"Teclado\",\"price\":45.0}")
+                .when().post("/api/products")
+                .then().statusCode(201)
+                .extract().path("id");
+        long id = createdId.longValue();
+
+        given().contentType(ContentType.JSON)
+                .body("{\"name\":\"Teclado Pro\",\"price\":59.99}")
+                .when().put("/api/products/" + id)
+                .then().statusCode(200)
+                .body("id", is((int) id))
+                .body("name", is("Teclado Pro"));
+
+        given().when().get("/api/products/" + id)
+                .then().statusCode(200)
+                .body("price", is(59.99f));
+
+        given().when().delete("/api/products/" + id).then().statusCode(204);
+        given().when().get("/api/products/" + id).then().statusCode(404);
+    }
+
+    @Test
+    void updateMissingProductReturnsNotFound() {
+        given().contentType(ContentType.JSON)
+                .body("{\"name\":\"Teclado\",\"price\":45.0}")
+                .when().put("/api/products/999999")
+                .then().statusCode(404);
+    }
+
+    @Test
     void rejectsInvalidProduct() {
         given().contentType(ContentType.JSON)
                 .body("{\"name\":\"\",\"price\":-1}")

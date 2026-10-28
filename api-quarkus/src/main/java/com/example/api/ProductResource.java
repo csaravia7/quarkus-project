@@ -1,61 +1,147 @@
 package com.example.api;
 
-import io.quarkus.logging.Log;
-import jakarta.inject.Inject;
-import jakarta.validation.Valid;
-import jakarta.ws.rs.Consumes;
-import jakarta.ws.rs.DELETE;
-import jakarta.ws.rs.GET;
-import jakarta.ws.rs.NotFoundException;
-import jakarta.ws.rs.POST;
-import jakarta.ws.rs.Path;
-import jakarta.ws.rs.PathParam;
-import jakarta.ws.rs.Produces;
-import jakarta.ws.rs.core.MediaType;
-import jakarta.ws.rs.core.Response;
+import io.quarkus.vertx.web.Route;
+import io.vertx.core.json.Json;
+import io.vertx.ext.web.RoutingContext;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
-import java.net.URI;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 
-@Path("/api/products")
-@Produces(MediaType.APPLICATION_JSON)
-@Consumes(MediaType.APPLICATION_JSON)
 public class ProductResource {
 
-    @Inject
-    ProductService service;
+    private static final Logger LOG = LogManager.getLogger(ProductResource.class);
 
-    @GET
-    public List<Product> list() {
+    private final ProductService service;
+
+    ProductResource() {
+        service = new ProductService();
+        String mode = System.getProperty("org.graalvm.nativeimage.imagecode") != null ? "native" : "jvm";
+        LOG.info("Runtime mode: {}", mode);
+        LOG.info("Dynatrace OneAgent loaded in process: {}", oneAgentLoaded());
+        LOG.info("LD_PRELOAD={}", System.getenv().getOrDefault("LD_PRELOAD", "<not set>"));
+    }
+
+    @Route(path = "/api/products", methods = Route.HttpMethod.GET)
+    void list(RoutingContext context) {
         List<Product> products = service.findAll();
-        Log.infof("Listing %d products", products.size());
-        return products;
+        LOG.info("Listing {} products", products.size());
+        respond(context, 200, products);
     }
 
-    @GET
-    @Path("/{id}")
-    public Product get(@PathParam("id") Long id) {
-        return service.findById(id).orElseThrow(() -> {
-            Log.warnf("Product %d not found", id);
-            return new NotFoundException();
-        });
-    }
-
-    @POST
-    public Response create(@Valid Product product) {
-        Product saved = service.create(product);
-        Log.infof("Created product id=%d name=%s", saved.id(), saved.name());
-        return Response.created(URI.create("/api/products/" + saved.id())).entity(saved).build();
-    }
-
-    @DELETE
-    @Path("/{id}")
-    public Response delete(@PathParam("id") Long id) {
-        if (!service.delete(id)) {
-            Log.warnf("Delete failed, product %d not found", id);
-            throw new NotFoundException();
+    @Route(path = "/api/products/:id", methods = Route.HttpMethod.GET)
+    void get(RoutingContext context) {
+        Long id = parseId(context);
+        if (id == null) {
+            context.response().setStatusCode(400).end();
+            return;
         }
-        Log.infof("Deleted product id=%d", id);
-        return Response.noContent().build();
+
+        Product product = service.findById(id).orElse(null);
+        if (product == null) {
+            LOG.warn("Product {} not found", id);
+            context.response().setStatusCode(404).end();
+            return;
+        }
+
+        respond(context, 200, product);
+    }
+
+    @Route(path = "/api/products", methods = Route.HttpMethod.POST)
+    void create(RoutingContext context) {
+        Product product = readProduct(context);
+        if (!isValid(product)) {
+            context.response().setStatusCode(400).end();
+            return;
+        }
+
+        Product saved = service.create(product);
+        LOG.info("Created product id={} name={}", saved.id(), saved.name());
+        context.response()
+                .setStatusCode(201)
+                .putHeader("Location", "/api/products/" + saved.id())
+                .putHeader("Content-Type", "application/json")
+                .end(Json.encode(saved));
+    }
+
+    @Route(path = "/api/products/:id", methods = Route.HttpMethod.PUT)
+    void update(RoutingContext context) {
+        Long id = parseId(context);
+        Product product = readProduct(context);
+        if (id == null || !isValid(product)) {
+            context.response().setStatusCode(400).end();
+            return;
+        }
+
+        Product updated = service.update(id, product).orElse(null);
+        if (updated == null) {
+            LOG.warn("Update failed, product {} not found", id);
+            context.response().setStatusCode(404).end();
+            return;
+        }
+
+        LOG.info("Updated product id={} name={}", updated.id(), updated.name());
+        respond(context, 200, updated);
+    }
+
+    @Route(path = "/api/products/:id", methods = Route.HttpMethod.DELETE)
+    void delete(RoutingContext context) {
+        Long id = parseId(context);
+        if (id == null) {
+            context.response().setStatusCode(400).end();
+            return;
+        }
+
+        if (!service.delete(id)) {
+            LOG.warn("Delete failed, product {} not found", id);
+            context.response().setStatusCode(404).end();
+            return;
+        }
+
+        LOG.info("Deleted product id={}", id);
+        context.response().setStatusCode(204).end();
+    }
+
+    private static Long parseId(RoutingContext context) {
+        try {
+            return Long.parseLong(context.pathParam("id"));
+        } catch (NumberFormatException exception) {
+            return null;
+        }
+    }
+
+    private static Product readProduct(RoutingContext context) {
+        try {
+            String body = context.body().asString();
+            return body == null || body.isBlank() ? null : Json.decodeValue(body, Product.class);
+        } catch (RuntimeException exception) {
+            return null;
+        }
+    }
+
+    private static boolean isValid(Product product) {
+        return product != null
+                && product.name() != null
+                && !product.name().isBlank()
+                && Double.isFinite(product.price())
+                && product.price() >= 0;
+    }
+
+    private static void respond(RoutingContext context, int status, Object body) {
+        context.response()
+                .setStatusCode(status)
+                .putHeader("Content-Type", "application/json")
+                .end(Json.encode(body));
+    }
+
+    private static boolean oneAgentLoaded() {
+        try {
+            return Files.readString(Path.of("/proc/self/maps")).contains("oneagent");
+        } catch (IOException exception) {
+            return false;
+        }
     }
 }

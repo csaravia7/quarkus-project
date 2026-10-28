@@ -1,8 +1,5 @@
 package com.example.api;
 
-import jakarta.annotation.PostConstruct;
-import jakarta.enterprise.context.ApplicationScoped;
-
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -10,14 +7,12 @@ import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 
-@ApplicationScoped
 public class ProductService {
 
     private final Map<Long, Product> store = new ConcurrentHashMap<>();
     private final AtomicLong sequence = new AtomicLong();
 
-    @PostConstruct
-    void seed() {
+    public ProductService() {
         create(new Product(null, "Laptop", 1200.0));
         create(new Product(null, "Mouse", 25.5));
     }
@@ -34,6 +29,11 @@ public class ProductService {
         Product saved = product.withId(sequence.incrementAndGet());
         store.put(saved.id(), saved);
         return saved;
+    }
+
+    public Optional<Product> update(Long id, Product product) {
+        return Optional.ofNullable(
+            store.computeIfPresent(id, (existingId, current) -> product.withId(existingId)));
     }
 
     public boolean delete(Long id) {

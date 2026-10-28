@@ -84,6 +84,7 @@ The runtime module is copied to `/work/dynatrace`, next to the executable. In Ku
 | GET | `/api/products` | List products |
 | GET | `/api/products/{id}` | Get a product |
 | POST | `/api/products` | Create a product |
+| PUT | `/api/products/{id}` | Update a product |
 | DELETE | `/api/products/{id}` | Delete a product |
 | GET | `/q/health` | Health check |
 | GET | `/q/swagger-ui` | API documentation |
