@@ -1,5 +1,5 @@
-## Stage 1: compila el ejecutable nativo con Mandrel (GraalVM)
-FROM quay.io/quarkus/ubi9-quarkus-mandrel-builder-image:jdk-21 AS build
+## Stage 1: compila el ejecutable nativo con GraalVM CE
+FROM quay.io/quarkus/ubi9-quarkus-graalvmce-builder-image:jdk-21 AS build
 COPY --chown=quarkus:quarkus --chmod=0755 mvnw /code/mvnw
 COPY --chown=quarkus:quarkus .mvn /code/.mvn
 COPY --chown=quarkus:quarkus pom.xml /code/
