@@ -1,4 +1,5 @@
 import express from 'express';
+import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -9,6 +10,17 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 
 app.disable('x-powered-by');
+
+app.use((req, res, next) => {
+  if (req.path === '/health') return next();
+  const start = process.hrtime.bigint();
+  res.on('finish', () => {
+    const ms = Number(process.hrtime.bigint() - start) / 1e6;
+    console.log(`${req.ip} "${req.method} ${req.originalUrl}" ${res.statusCode} ${ms.toFixed(1)}ms`);
+  });
+  next();
+});
+
 app.use(express.static(path.join(__dirname, '..', 'public')));
 
 app.get('/health', (_req, res) => res.json({ status: 'UP' }));
@@ -32,6 +44,16 @@ app.use('/api', express.json({ limit: '100kb' }), async (req, res) => {
   }
 });
 
+function oneAgentLoaded() {
+  try {
+    return fs.readFileSync('/proc/self/maps', 'utf8').includes('oneagent');
+  } catch {
+    return false;
+  }
+}
+
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`Frontend en http://localhost:${PORT} -> API ${API_BASE_URL}`);
+  console.log(`Dynatrace OneAgent loaded in process: ${oneAgentLoaded()}`);
+  console.log(`LD_PRELOAD=${process.env.LD_PRELOAD || '<not set>'}`);
 });

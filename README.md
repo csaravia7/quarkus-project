@@ -66,6 +66,17 @@ To monitor the services inside Codespaces, create the Codespace with **New with 
 
 OneAgent is installed automatically in application-only mode and attached when you run `start-dev.sh` or `start-docker.sh`. If no values are provided, the project runs without monitoring.
 
+### Instrumenting the native API image
+
+A GraalVM native executable can only be monitored if it is built with the [Dynatrace GraalVM Native Image module](https://docs.dynatrace.com/docs/ingest-from/technology-support/application-software/java/graalvm-native-image). Pass the same variables to the build script and the API is compiled with the `dynatrace-native` Maven profile (the token is passed as a BuildKit secret and is not stored in the image):
+
+```bash
+DT_ENV_URL=https://<env-id>.live.dynatrace.com DT_API_TOKEN=<token> \
+PLATFORMS=linux/amd64 ./scripts/build-push-dockerhub.sh
+```
+
+The runtime module is copied to `/work/dynatrace`, next to the executable. In Kubernetes with the Dynatrace Operator, connection details are applied automatically; otherwise set `DT_TENANT`, `DT_TENANTTOKEN` and `DT_CONNECTION_POINT` on the `api-quarkus` deployment.
+
 ## API
 
 | Method | Path | Description |

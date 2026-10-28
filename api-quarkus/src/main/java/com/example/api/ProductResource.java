@@ -1,5 +1,6 @@
 package com.example.api;
 
+import io.quarkus.logging.Log;
 import jakarta.inject.Inject;
 import jakarta.validation.Valid;
 import jakarta.ws.rs.Consumes;
@@ -26,18 +27,24 @@ public class ProductResource {
 
     @GET
     public List<Product> list() {
-        return service.findAll();
+        List<Product> products = service.findAll();
+        Log.infof("Listing %d products", products.size());
+        return products;
     }
 
     @GET
     @Path("/{id}")
     public Product get(@PathParam("id") Long id) {
-        return service.findById(id).orElseThrow(NotFoundException::new);
+        return service.findById(id).orElseThrow(() -> {
+            Log.warnf("Product %d not found", id);
+            return new NotFoundException();
+        });
     }
 
     @POST
     public Response create(@Valid Product product) {
         Product saved = service.create(product);
+        Log.infof("Created product id=%d name=%s", saved.id(), saved.name());
         return Response.created(URI.create("/api/products/" + saved.id())).entity(saved).build();
     }
 
@@ -45,8 +52,10 @@ public class ProductResource {
     @Path("/{id}")
     public Response delete(@PathParam("id") Long id) {
         if (!service.delete(id)) {
+            Log.warnf("Delete failed, product %d not found", id);
             throw new NotFoundException();
         }
+        Log.infof("Deleted product id=%d", id);
         return Response.noContent().build();
     }
 }

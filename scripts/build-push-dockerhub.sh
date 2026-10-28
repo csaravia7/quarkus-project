@@ -5,7 +5,7 @@
 # Uso:
 #   ./scripts/build-push-dockerhub.sh
 # Variables opcionales: DOCKERHUB_USER (rasec777), IMAGE_TAG (git sha), DOCKERHUB_TOKEN (login no interactivo),
-#   PLATFORMS (linux/amd64,linux/arm64)
+#   PLATFORMS (linux/amd64,linux/arm64), DT_ENV_URL + DT_API_TOKEN (compila la API con el módulo Dynatrace)
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -43,8 +43,13 @@ fi
 
 for svc in api-quarkus frontend-node; do
   image="docker.io/${DOCKERHUB_USER}/${svc}"
+  extra=()
+  if [[ "$svc" == "api-quarkus" && -n "${DT_ENV_URL:-}" && -n "${DT_API_TOKEN:-}" ]]; then
+    echo ">> api-quarkus se compila con el módulo Dynatrace GraalVM Native Image (${DT_ENV_URL})"
+    extra=(--build-arg "DT_ENV_URL=${DT_ENV_URL%/}" --secret id=dt_api_token,env=DT_API_TOKEN)
+  fi
   echo ">> Construyendo y publicando ${image}:${IMAGE_TAG} (${PLATFORMS})"
-  docker buildx build --builder "$BUILDER" --platform "$PLATFORMS" \
+  docker buildx build --builder "$BUILDER" --platform "$PLATFORMS" ${extra[@]+"${extra[@]}"} \
     -t "${image}:${IMAGE_TAG}" -t "${image}:latest" --push "$svc"
 done
 
