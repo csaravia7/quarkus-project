@@ -1,96 +1,87 @@
-# Quarkus API + Node.js Frontend (GitHub Codespaces)
+# Quarkus Native API + Node.js Frontend
 
 [![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/csaravia7/quarkus-project?quickstart=0)
 
-| Servicio | Carpeta | Puerto | Tecnología |
+Two microservices ready to run on GitHub Codespaces, Docker or Kubernetes (AKS).
+
+| Service | Folder | Port | Stack |
 |---|---|---|---|
-| API | `api-quarkus/` | 8080 | Java 21 + Quarkus 3, **ejecutable nativo GraalVM (Mandrel)** |
-| Frontend | `frontend-node/` | 3000 | Node 20 + Express |
+| API | `api-quarkus/` | 8080 | Java 21, Quarkus 3, GraalVM native executable |
+| Frontend | `frontend-node/` | 3000 | Node.js 20, Express |
 
-El frontend sirve la UI y hace de proxy server-side de `/api/*` hacia Quarkus (`API_BASE_URL`), así no hay problemas de CORS ni con los puertos privados de Codespaces.
+The frontend serves the UI and proxies `/api/*` to the API.
 
-## Arranque en Codespaces
+## Quick start (GitHub Codespaces)
 
-1. Sube el repo a GitHub → **Code → Codespaces → Create codespace**.
-2. El devcontainer instala Java 21, Maven, Node 20 y Docker, y precarga dependencias.
-3. Ejecuta uno de:
-   - Modo dev (hot reload): `./scripts/start-dev.sh` (o tarea VS Code **Start all**)
-   - Contenedores (API nativa): `./scripts/start-docker.sh`
-   - Solo compilar el binario nativo: `./scripts/build-native.sh`
-4. Se abre automáticamente el puerto 3000 (frontend).
+1. Click **Open in GitHub Codespaces** above (or **Code → Codespaces → New with options**).
+2. Wait for the setup to finish (Java, Maven, Node.js and Docker are installed automatically).
+3. Run one of:
 
-## API nativa (GraalVM)
+```bash
+./scripts/start-dev.sh      # development mode with hot reload
+./scripts/start-docker.sh   # containers (native API)
+```
 
-- `api-quarkus/Dockerfile`: build multi-stage con Mandrel → imagen `ubi9-quarkus-micro-image` sin JVM.
-- `api-quarkus/Dockerfile.jvm`: alternativa en modo JVM.
-- `mvn quarkus:dev` siempre corre en JVM (hot reload); el nativo es para build/deploy.
-- Tests contra el binario nativo: `./mvnw verify -Dnative -Dquarkus.native.container-build=true`.
-- Verificación: el log de arranque muestra `... native (powered by Quarkus ...)`.
+4. Open port **3000** in the browser.
 
-## Dynatrace OneAgent
+## Deploy to Kubernetes (AKS)
 
-El Codespace corre dentro de un contenedor, por lo que OneAgent full-stack no es instalable. Se usa **monitoreo application-only (PaaS)**:
+**Requirements:** Docker running on your local machine and `kubectl` connected to your cluster.
 
-1. Al crear el Codespace, `.devcontainer/install-oneagent.sh` descarga el paquete PaaS (Java + Node.js) desde tu ambiente y lo instala en `/opt/dynatrace/oneagent`.
-2. `scripts/start-dev.sh` y `scripts/start-docker.sh` cargan `scripts/oneagent-env.sh`, que activa el agente con `LD_PRELOAD` solo en los procesos de la app.
+**1. Build and push the images to Docker Hub** (run locally)
 
-| Modo | Instrumentado |
-|---|---|
-| `start-dev.sh` | Frontend Node.js y API Quarkus (JVM) |
-| `start-docker.sh` | Frontend Node.js (contenedor). La API nativa GraalVM **no** es instrumentable con OneAgent PaaS |
+```bash
+# Multi-architecture (linux/amd64 + linux/arm64) – runs on any Linux
+./scripts/build-push-dockerhub.sh
 
-Si no hay credenciales, se omite y todo funciona sin monitoreo.
+# linux/amd64 only – faster, enough for x86 nodes
+PLATFORMS=linux/amd64 ./scripts/build-push-dockerhub.sh
+```
 
-Define estas variables al crear el Codespace con **Code → Codespaces → ⋯ → New with options** (o con el botón *Open in GitHub Codespaces* de arriba). La pantalla muestra un campo por cada variable; lo que ingreses se guarda como Codespaces secret de tu usuario y queda disponible como variable de entorno:
+The script asks for a Docker Hub access token and prints the image tag at the end.
 
-| Secret | Valor |
+**2. Deploy**
+
+```bash
+IMAGE_TAG=<tag> ./scripts/deploy-aks.sh   # or IMAGE_TAG=latest
+```
+
+Creates the `quarkus-demo` namespace, applies `k8s/` and prints the public URL of the frontend.
+
+**Check status / remove**
+
+```bash
+kubectl -n quarkus-demo get pods,svc
+kubectl delete -k k8s
+```
+
+## Dynatrace monitoring (optional)
+
+To monitor the services inside Codespaces, create the Codespace with **New with options** and fill in:
+
+| Secret | Value |
 |---|---|
 | `DT_ENV_URL` | `https://<env-id>.live.dynatrace.com` |
-| `DT_API_TOKEN` | Token con scope `InstallerDownload` |
+| `DT_API_TOKEN` | API token with `InstallerDownload` scope |
 
-Reinstalar manualmente: `bash .devcontainer/install-oneagent.sh`. Logs del agente: `/opt/dynatrace/oneagent/log/`.
+OneAgent is installed automatically in application-only mode and attached when you run `start-dev.sh` or `start-docker.sh`. If no values are provided, the project runs without monitoring.
 
-## Despliegue en AKS
+## API
 
-Las imágenes se publican en Docker Hub (`rasec777/api-quarkus`, `rasec777/frontend-node`) y los manifiestos de `k8s/` las despliegan en el namespace `quarkus-demo`.
+| Method | Path | Description |
+|---|---|---|
+| GET | `/api/products` | List products |
+| GET | `/api/products/{id}` | Get a product |
+| POST | `/api/products` | Create a product |
+| DELETE | `/api/products/{id}` | Delete a product |
+| GET | `/q/health` | Health check |
+| GET | `/q/swagger-ui` | API documentation |
 
-### Requisitos
+## Configuration options
 
-- **Para construir (paso 1):** Docker en ejecución en tu máquina local (Docker Desktop o Colima). No funciona en Azure Cloud Shell.
-- **Para desplegar (paso 2):** `kubectl` conectado al cluster AKS.
-
-### Paso 1: Construir y publicar las imágenes (local)
-
-```bash
-./scripts/build-push-dockerhub.sh
-```
-
-- Pide un Access Token de Docker Hub (o usa `DOCKERHUB_TOKEN`).
-- Publica `linux/amd64` con dos tags: el commit actual (ej. `d14f936`) y `latest`. Anota el tag que imprime al final.
-- En Mac Apple Silicon la imagen nativa se compila con emulación; para acelerarla: `colima start --vm-type vz --vz-rosetta --cpu 4 --memory 8`.
-
-### Paso 2: Desplegar en AKS
-
-```bash
-IMAGE_TAG=d14f936 ./scripts/deploy-aks.sh   # o IMAGE_TAG=latest
-```
-
-- Crea el namespace y aplica los manifiestos con el tag indicado.
-- Espera a que los pods estén listos y muestra la IP pública del frontend: `http://<IP>`.
-- Si los repos de Docker Hub son privados, agrega `DOCKERHUB_TOKEN=<token>`.
-
-### Verificar y eliminar
-
-```bash
-kubectl -n quarkus-demo get pods,svc   # estado
-kubectl delete -k k8s                  # eliminar el despliegue
-```
-
-## Endpoints API
-
-- `GET/POST /api/products`, `GET/DELETE /api/products/{id}`
-- Health: `/q/health` · Swagger UI: `/q/swagger-ui`
-
-## CI/CD
-
-`.github/workflows/ci.yml` compila/testea ambos servicios y en `main` publica las imágenes en GHCR.
+| Variable | Script | Default | Description |
+|---|---|---|---|
+| `PLATFORMS` | `build-push-dockerhub.sh` | `linux/amd64,linux/arm64` | Target architectures |
+| `DOCKERHUB_USER` | both | `rasec777` | Docker Hub account |
+| `DOCKERHUB_TOKEN` | both | – | Non-interactive login / private repositories |
+| `IMAGE_TAG` | both | current git commit | Image tag to build or deploy |
